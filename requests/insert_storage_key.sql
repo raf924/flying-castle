@@ -1,0 +1,1 @@
+INSERT INTO storage_key(id, key, created_at) VALUES (?, ?, ?);
