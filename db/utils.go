@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 )
@@ -10,16 +11,26 @@ func MustGetLastIdFrom(tx *sqlx.Tx, tableName string) int64 {
 	if err != nil {
 		panic(err)
 	}
-	return id
+	return id.Int64
 }
 
-func GetLastIdFrom(tx *sqlx.Tx, tableName string) (int64, error) {
+func GetLastIdFrom(tx *sqlx.Tx, tableName string) (sql.NullInt64, error) {
 	var lastRow = struct {
-		Id int64 `db:"id"`
+		Id sql.NullInt64 `db:"id"`
 	}{}
 	var err = tx.Get(&lastRow, fmt.Sprintf("SELECT MAX(id) as id from \"%s\"", tableName))
 	if err != nil {
-		return 0, err
+		return sql.NullInt64{
+			Int64: 0,
+			Valid: false,
+		}, err
 	}
 	return lastRow.Id, nil
+}
+
+func MustCommit(tx *sqlx.Tx) {
+	var err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
 }

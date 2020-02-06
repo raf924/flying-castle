@@ -1,32 +1,21 @@
 package business
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"flying-castle/db/dao"
+	"flying-castle/encryption"
 	"flying-castle/model"
 	"github.com/jmoiron/sqlx"
-	"io"
 	"io/ioutil"
 	"os"
-	"time"
+	"strings"
 )
 
 type FileBusiness struct {
 	db *sqlx.DB
 }
 
-func ModelMapper(dao dao.FileDAO) model.File {
-	var file = model.File{}
-	file.Id = uint64(dao.Id)
-	file.Name = dao.Name
-	file.Size = uint64(dao.Size)
-	file.AccessTime = time.Now()
-	file.DataChangeTime = dao.ModifiedAt
-	file.MetadataChangeTime = dao.ModifiedAt
-	return file
+func NewFileBusiness(db *sqlx.DB) FileBusiness {
+	return FileBusiness{db: db}
 }
 
 func (fileBusiness *FileBusiness) MustGetFileById(id int64) model.File {
@@ -35,51 +24,6 @@ func (fileBusiness *FileBusiness) MustGetFileById(id int64) model.File {
 		panic(err)
 	}
 	return file
-}
-
-func Decrypt(packet []byte, storageKey string) []byte {
-	key, err := base64.StdEncoding.DecodeString(storageKey)
-	if err != nil {
-		panic(err)
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-	nonce := packet[:12]
-	data := packet[12:]
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-	decrypted, err := aesGCM.Open(nil, nonce, data, nil)
-	if err != nil {
-		panic(err)
-	}
-	return decrypted
-}
-
-func Encrypt(packet []byte, storageKey string) []byte {
-	key, err := base64.StdEncoding.DecodeString(storageKey)
-	if err != nil {
-		panic(err)
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-	nonce := make([]byte, 12)
-	_, err = io.ReadFull(rand.Reader, nonce)
-	if err != nil {
-		panic(err)
-	}
-	encrypted := aesGCM.Seal(nil, nonce, packet, nil)
-	return append(nonce, encrypted...)
 }
 
 func (fileBusiness *FileBusiness) GetFileById(id int64) (model.File, error) {
@@ -103,17 +47,105 @@ func (fileBusiness *FileBusiness) GetFileById(id int64) (model.File, error) {
 		if err != nil {
 			panic(err)
 		}
-		var decodedBytes = Decrypt(bytes, storageKeyDAO.Key)
+		var decodedBytes = encryption.Decrypt(bytes, encryption.MustDecodeKey(storageKeyDAO.Key))
 		data = append(data, decodedBytes...)
 		nextChunkId = nextChunk.NextChunk.Int64
 		hasNextChunk = nextChunk.NextChunk.Valid
 	}
+	var pathRepo = dao.NewPathRepository(tx)
+	var pathDAO = pathRepo.GetById(fileDAO.PathId)
+	file.Name = pathDAO.Name
 	file.DataHolder.Data = data
-	return file, nil
+	return file, tx.Commit()
 }
 
-func (fileBusiness *FileBusiness) GetFileByPathId(id int64) (dao.FileDAO, error) {
-	var file = dao.FileDAO{}
-	var err = fileBusiness.db.Get(&file, "SELECT * FROM file WHERE path_id = ?")
-	return file, err
+func (fileBusiness *FileBusiness) FindByUserAndPath(userId int64, path string) *model.File {
+	var tx = fileBusiness.db.MustBegin()
+	var pathNames = strings.Split(path, "/")
+	var isAbsolute = len(path) > 0 && path[0] == '/'
+	var userRepo = dao.NewUserRepository(tx)
+	var groupRepo = dao.NewGroupRepository(tx)
+	var userDAO = userRepo.GetById(userId)
+	var groupDAO = groupRepo.GetById(userDAO.MainGroupId)
+	var group = model.Group{
+		FileSystemEntity: model.FileSystemEntity{
+			Id:   uint64(groupDAO.Id),
+			Name: groupDAO.Name,
+		},
+		Users: []*model.User{},
+	}
+	var user = model.User{
+		FileSystemEntity: model.FileSystemEntity{},
+		Group:            &group,
+	}
+	group.Users = append(group.Users, &user)
+	var folderRepo = dao.NewFolderRepository(tx)
+	var rootPath dao.FolderDAO
+	if pathNames[0] == "" {
+		pathNames = pathNames[1:]
+	}
+	if isAbsolute {
+		//TODO
+	} else {
+		rootPath = folderRepo.GetUserRoot(userId)
+	}
+	var pathRepo = dao.NewPathRepository(tx)
+	var currentPath = pathRepo.GetById(rootPath.Id)
+	for len(pathNames) > 0 {
+		var path = pathRepo.FindByParentAndName(currentPath.Id, pathNames[0])
+		if path == nil {
+			panic("Given path does not exist")
+		}
+		currentPath = *path
+		pathNames = pathNames[1:]
+	}
+	var folder = dao.FolderDAO{}
+	var fileDAO = dao.FileDAO{}
+	var kind model.FileKind
+	var fileId int64
+	folder, err := folderRepo.FindByPathId(currentPath.Id)
+	if err != nil {
+		var fileRepo = dao.NewFileRepository(tx)
+		fileDAO, err = fileRepo.FindByPathId(currentPath.Id)
+		if err != nil {
+			panic(err)
+		}
+		fileId = fileDAO.Id
+		kind = model.RegularFile
+	} else {
+		fileId = folder.Id
+		kind = model.Directory
+	}
+	var file = model.File{
+		FileSystemEntity: model.FileSystemEntity{
+			Id:   uint64(fileId),
+			Name: currentPath.Name,
+		},
+		DataHolder:         model.DataHolder{},
+		Size:               0,
+		Parent:             nil,
+		AccessTime:         currentPath.AccessedAt,
+		MetadataChangeTime: currentPath.ModifiedAt,
+		DataChangeTime:     currentPath.CreatedAt,
+		Owner:              &user,
+		Group:              &group,
+		Kind:               kind,
+		UserPermissions:    nil,
+		GroupPermissions:   nil,
+	}
+	//TODO: fill permissions
+	err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
+	return &file
+}
+
+func (fileBusiness *FileBusiness) Create(parent int64, file model.File) error {
+	var tx = fileBusiness.db.MustBegin()
+	var fileRepo = dao.NewFileRepository(tx)
+	var storageKeyRepo = dao.NewStorageKeyRepository(tx)
+	var latestKey = storageKeyRepo.GetLatest()
+	fileRepo.Save(parent, file.Name, file.Data, latestKey.Key)
+	return tx.Commit()
 }

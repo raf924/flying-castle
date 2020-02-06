@@ -1,0 +1,1 @@
+SELECT * from path p where p.parent_id = ? and p.name = ?;

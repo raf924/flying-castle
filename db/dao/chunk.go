@@ -19,11 +19,15 @@ func NewChunkRepository(tx *sqlx.Tx) ChunkRepository {
 	return ChunkRepository{tx: tx}
 }
 
-func (cr *ChunkRepository) GetById(id int64) ChunkDAO {
+func (chunkRepo *ChunkRepository) GetById(id int64) ChunkDAO {
 	var chunkDAO = ChunkDAO{}
-	var err = cr.tx.Get(&chunkDAO, "SELECT * FROM chunk where id = ?", id)
+	var err = chunkRepo.tx.Get(&chunkDAO, "SELECT * FROM chunk where id = ?", id)
 	if err != nil {
 		panic(err)
 	}
 	return chunkDAO
+}
+
+func (chunkRepo *ChunkRepository) Create(dao ChunkDAO) {
+	chunkRepo.tx.MustExec("INSERT INTO chunk(id, path, next_chunk) VALUES (?, ?, ?)", dao.Id, dao.Path, dao.NextChunk)
 }
