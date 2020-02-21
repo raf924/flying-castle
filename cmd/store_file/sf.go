@@ -2,12 +2,12 @@ package main
 
 import (
 	"flying-castle/business"
+	"flying-castle/castle"
 	"flying-castle/cmd"
+	"flying-castle/db"
 	"flying-castle/model"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
-	"net/url"
 	"os"
 )
 
@@ -26,43 +26,42 @@ func (f *FileFlags) Validate() {
 	}
 }
 
-func main() {
-	var config = cmd.GetConfig()
-	var dbUrl, err = url.Parse(config.DbUrl)
-	if err != nil {
-		panic(err)
-	}
-	var flags = FileFlags{}
-	cmd.ReadFlags(&flags)
-
-	db, err := sqlx.Connect(dbUrl.Scheme, dbUrl.EscapedPath())
-	if err != nil {
-		panic(err)
-	}
-	var fileBusiness = business.NewFileBusiness(db)
-	var userBusiness = business.NewUserBusiness(db)
-	user, err := userBusiness.FindUserByNameAndPassword(flags.UserName, flags.Password)
-	if err != nil {
-		panic(err)
-	}
-	var folder = fileBusiness.FindByUserAndPath(int64(user.Id), flags.Destination)
-	if folder.Kind != model.Directory {
-		panic("Destination is not a valid folder")
-	}
-	//TODO: create path if valid but doesn't exist (with flag?)
+func storeFile(config *cmd.Config, flags FileFlags) error {
 	realFile, err := os.Open(flags.FilePath)
 	if err != nil {
-		panic(err)
+		return cmd.FileNotFoundError
 	}
 	stat, err := realFile.Stat()
 	if err != nil {
-		panic(err)
+		return cmd.UnreadableFileError
 	}
 	data, err := ioutil.ReadAll(realFile)
 	if err != nil {
-		panic(err)
+		return cmd.UnreadableFileError
 	}
 	lastTime := stat.ModTime()
+
+	err = db.LoadDB(config.DbUrl)
+	if err != nil {
+		return err
+	}
+	fsBackend, _ := castle.NewFSBackend(config.DataPath)
+	castle.SetStorageBackend(fsBackend)
+	//TODO: create path if valid but doesn't exist (with flag?)
+
+	var fileBusiness = business.NewDBFileBusiness()
+	var userBusiness = business.NewDBUserBusiness()
+	user, err := userBusiness.FindUserByNameAndPassword(flags.UserName, flags.Password)
+	if err != nil {
+		return err
+	}
+	folder, err := fileBusiness.FindByUserAndPath(int64(user.Id), flags.Destination)
+	if err != nil {
+		return err
+	}
+	if folder.Kind != model.Directory {
+		return model.WrongFileKind
+	}
 	var file = model.File{
 		FileSystemEntity: model.FileSystemEntity{
 			Id:   0,
@@ -80,7 +79,14 @@ func main() {
 		UserPermissions:    nil,
 		GroupPermissions:   nil,
 	}
-	err = fileBusiness.Create(int64(folder.Id), file)
+	return fileBusiness.Create(int64(folder.Id), file)
+}
+
+func main() {
+	var config = cmd.GetConfig()
+	var flags = FileFlags{}
+	cmd.ReadFlags(&flags)
+	var err = storeFile(config, flags)
 	if err != nil {
 		panic(err)
 	}

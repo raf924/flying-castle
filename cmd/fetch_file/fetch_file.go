@@ -1,12 +1,12 @@
 package main
 
 import (
+	"errors"
 	"flying-castle/business"
 	"flying-castle/cmd"
+	"flying-castle/db"
 	"flying-castle/model"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
-	"net/url"
 	"os"
 	"path"
 )
@@ -26,47 +26,56 @@ func (f *FileFlags) Validate() {
 	}
 }
 
-func main() {
-	var config = cmd.GetConfig()
-	var dbUrl, err = url.Parse(config.DbUrl)
+func fetchFile(config *cmd.Config, flags FileFlags) error {
+	err := os.MkdirAll(flags.Output, os.ModeDir)
 	if err != nil {
-		panic(err)
+		return cmd.NotCreatableError
 	}
-	var flags = FileFlags{}
-	cmd.ReadFlags(&flags)
-
-	//TODO: if output is non-exisiting file path in existing folder recursive creation (flag?)
-
-	db, err := sqlx.Connect(dbUrl.Scheme, dbUrl.EscapedPath())
+	err = db.LoadDB(config.DbUrl)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	var fileBusiness = business.NewFileBusiness(db)
-	var userBusiness = business.NewUserBusiness(db)
+	var fileBusiness = business.NewDBFileBusiness()
+	var userBusiness = business.NewDBUserBusiness()
 	user, err := userBusiness.FindUserByNameAndPassword(flags.UserName, flags.Password)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	var file = fileBusiness.FindByUserAndPath(int64(user.Id), flags.FilePath)
+	file, err := fileBusiness.FindByUserAndPath(int64(user.Id), flags.FilePath)
+	if err != nil {
+		return err
+	}
+	//TODO: if output is non-exisiting file path in existing folder recursive creation (flag?)
 	if file.Kind != model.RegularFile {
-		panic("can't fetch this kind of file")
+		return model.WrongFileKind
 	}
 	*file, err = fileBusiness.GetFileById(int64(file.Id))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	outputPath := path.Join(flags.Output, file.Name)
 	_, err = os.Stat(outputPath)
 	if err == nil {
-		panic("output file already exists")
+		return errors.New("output file already exists")
 	}
 	f, err := os.Create(outputPath)
 	if err != nil {
-		panic("can't create output file")
+		return errors.New("can't create output file")
 	}
 	_, err = f.Write(file.Data)
 	if err != nil {
-		panic("can't write to output file")
+		return errors.New("can't write to output file")
 	}
 	_ = f.Close()
+	return nil
+}
+
+func main() {
+	var config = cmd.GetConfig()
+	var flags = FileFlags{}
+	cmd.ReadFlags(&flags)
+	var err = fetchFile(config, flags)
+	if err != nil {
+		println("error while fetching %s", flags.FilePath)
+	}
 }

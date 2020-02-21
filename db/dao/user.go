@@ -29,7 +29,6 @@ func (userRepo *UserRepository) FindByName(name string) *UserDAO {
 	var userDAO = UserDAO{}
 	var err = userRepo.tx.Get(&userDAO, "SELECT * FROM user where user.user_name = ?", name)
 	if err != nil {
-		println(err.Error())
 		return nil
 	}
 	return &userDAO
@@ -62,7 +61,7 @@ func (userRepo *UserRepository) FindAll() []UserDAO {
 	return userDAO
 }
 
-func (userRepo *UserRepository) Create(name string, passwordHash []byte, salt []byte) {
+func (userRepo *UserRepository) Create(name string, passwordHash []byte, salt []byte) error {
 	var tx = userRepo.tx
 	asset := requests.MustAsset("requests/insert_user.sql")
 	var folderRepo = NewFolderRepository(userRepo.tx)
@@ -74,6 +73,7 @@ func (userRepo *UserRepository) Create(name string, passwordHash []byte, salt []
 	var lastPath = db.MustGetLastIdFrom(tx, "folder")
 	var lastGroup = db.MustGetLastIdFrom(tx, "group")
 	var lastUser = db.MustGetLastIdFrom(tx, "user")
-	_ = tx.MustExec(req, lastGroup+1, name,
+	_, err := tx.Exec(req, lastGroup+1, name,
 		lastUser+1, name, encryption.EncodeKey(passwordHash), encryption.EncodeKey(salt), lastPath, lastGroup+1)
+	return err
 }

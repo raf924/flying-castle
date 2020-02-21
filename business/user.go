@@ -7,6 +7,7 @@ import (
 	"flying-castle/db/dao"
 	"flying-castle/encryption"
 	"flying-castle/model"
+	"flying-castle/validation"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -14,8 +15,8 @@ type UserBusiness struct {
 	db *sqlx.DB
 }
 
-func NewUserBusiness(db *sqlx.DB) UserBusiness {
-	return UserBusiness{db: db}
+func NewDBUserBusiness() UserBusiness {
+	return UserBusiness{db: sqlx.NewDb(db.GetDB().GetDB(), db.GetDB().GetDriver())}
 }
 
 func (userBusiness *UserBusiness) FindUserByNameAndPassword(name string, password string) (*model.User, error) {
@@ -23,7 +24,7 @@ func (userBusiness *UserBusiness) FindUserByNameAndPassword(name string, passwor
 	var userRepo = dao.NewUserRepository(tx)
 	var userDAO = userRepo.FindByName(name)
 	if userDAO == nil {
-		return nil, errors.New("invalid username or password")
+		return nil, model.InvalidCredentials
 	}
 	salt, err := encryption.DecodeKey(userDAO.Salt)
 	if err != nil {
@@ -31,7 +32,7 @@ func (userBusiness *UserBusiness) FindUserByNameAndPassword(name string, passwor
 	}
 	hash := encryption.EncodeKey(encryption.MustHash(password, salt))
 	if hash != userDAO.Hash {
-		return nil, errors.New("invalid username or password")
+		return nil, model.InvalidCredentials
 	}
 	db.MustCommit(tx)
 	var user = model.User{
@@ -45,14 +46,23 @@ func (userBusiness *UserBusiness) FindUserByNameAndPassword(name string, passwor
 }
 
 func (userBusiness *UserBusiness) Create(name string, password string) error {
+	if !validation.ValidateValue(name, validation.Alphanumeric) {
+		return model.InvalidNewUsername
+	}
+	if !validation.ValidateValue(password, validation.Password) {
+		return model.InvalidNewPassword
+	}
 	var tx = userBusiness.db.MustBegin()
 	var userRepo = dao.NewUserRepository(tx)
 	var salt = make([]byte, 256)
 	_, err := rand.Read(salt)
 	if err != nil {
-		panic(err)
+		return errors.New("error while generating hash salt")
 	}
 	hash := encryption.MustHash(password, salt)
-	userRepo.Create(name, hash, salt)
+	err = userRepo.Create(name, hash, salt)
+	if err != nil {
+		return err
+	}
 	return tx.Commit()
 }

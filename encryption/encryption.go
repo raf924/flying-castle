@@ -27,18 +27,9 @@ func MustDecodeKey(key string) []byte {
 	return r
 }
 
-func Decrypt(packet []byte, key []byte) []byte {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
+func Decrypt(packet []byte) []byte {
 	nonce := packet[:12]
 	data := packet[12:]
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
 	decrypted, err := aesGCM.Open(nil, nonce, data, nil)
 	if err != nil {
 		panic(err)
@@ -46,7 +37,7 @@ func Decrypt(packet []byte, key []byte) []byte {
 	return decrypted
 }
 
-func Encrypt(packet, key []byte) []byte {
+func Encrypt(packet []byte) []byte {
 	nonce := make([]byte, 12)
 	_, err := io.ReadFull(rand.Reader, nonce)
 	if err != nil {
@@ -82,4 +73,18 @@ func Hash(text string, salt []byte) ([]byte, error) {
 		return nil, err
 	}
 	return append(salt, hash...), nil
+}
+
+func GenerateKey() ([]byte, error) {
+	var key = make([]byte, 256)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, err
+	}
+	var salt = make([]byte, 256)
+	_, err = rand.Read(salt)
+	if err != nil {
+		return nil, err
+	}
+	return scrypt.Key(key, salt, 32768, 8, 1, 32)
 }

@@ -1,12 +1,10 @@
 package dao
 
 import (
-	"crypto/rand"
 	"flying-castle/db"
 	"flying-castle/encryption"
 	"flying-castle/requests"
 	"github.com/jmoiron/sqlx"
-	"golang.org/x/crypto/scrypt"
 	"time"
 )
 
@@ -30,11 +28,10 @@ func (skRepo *StorageKeyRepository) GetLatest() StorageKeyDAO {
 	if err != nil {
 		panic(err)
 	}
-	encryption.MustUpdateKey(storageKeyDAO.Key)
 	return storageKeyDAO
 }
 
-func (skRepo *StorageKeyRepository) Create() StorageKeyDAO {
+func (skRepo *StorageKeyRepository) Create() error {
 	var tx = skRepo.tx
 	asset := requests.MustAsset("requests/insert_storage_key.sql")
 	var req = string(asset)
@@ -42,21 +39,14 @@ func (skRepo *StorageKeyRepository) Create() StorageKeyDAO {
 	if err != nil {
 		panic(err)
 	}
-	var key = make([]byte, 256)
-	_, err = rand.Read(key)
+	storageKey, err := encryption.GenerateKey()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	var salt = make([]byte, 256)
-	_, err = rand.Read(salt)
+	_, err = tx.Exec(req, lastId.Int64+1, encryption.EncodeKey(storageKey), time.Now())
 	if err != nil {
-		panic(err)
+		return err
 	}
-	storageKey, err := scrypt.Key(key, salt, 32768, 8, 1, 32)
-	if err != nil {
-		panic(err)
-	}
-	_ = tx.MustExec(req, lastId.Int64+1, encryption.EncodeKey(storageKey), time.Now())
 	encryption.MustUpdateKey(encryption.EncodeKey(storageKey))
-	return skRepo.GetLatest()
+	return nil
 }

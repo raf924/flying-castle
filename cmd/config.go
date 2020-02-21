@@ -3,15 +3,21 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"sync"
 )
 
 type Config struct {
-	DbUrl    string `json:"db_url" required:"true"`
-	DataPath string `json:"data_path" required:"true" type:"real_path"`
+	DbUrl         string `json:"db_url" required:"true"`
+	DataPath      string `json:"data_path" required:"true" type:"url"`
+	S3AccessId    string `json:"s3_access_id" type:"alphanum"`
+	S3Secret      string `json:"s3_secret" type:"alphanum"`
+	S3Profile     string `json:"s3_profile" type:"alphanum"`
+	S3Credentials string `json:"s3_credentials" type:"real_path"`
 }
 
 type ConfigFlags struct {
@@ -47,6 +53,13 @@ func init() {
 		_, err := os.Stat(value)
 		return err == nil
 	}
+	validationMap[Alphanumeric] = regexp.MustCompile(`^[a-zA-Z0-9]+$`).MatchString
+	validationMap[Alpha] = regexp.MustCompile(`^[a-zA-Z]+$`).MatchString
+	validationMap[Url] = func(value string) bool {
+		_, err := url.Parse(value)
+		return err == nil
+	}
+	validationMap[Mail] = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$").MatchString
 }
 
 func readConfig() {

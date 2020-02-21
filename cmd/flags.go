@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"flag"
+	"flying-castle/validation"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,8 +16,9 @@ type Flags struct {
 
 type AppFlags interface {
 	// Implement this method to check complex flag constraints
-	// such as when 2 fields are mutually exclusive but one of them is required
-	// or when you want to match values against a regex
+	// such as when 2 fields are mutually exclusive but one of them is required,
+	// when you want to match values against a regex
+	// or if you want to compare several flag values
 	Validate()
 }
 
@@ -173,12 +175,11 @@ func ReadFlags(flags AppFlags) {
 	for name, value := range values {
 		valueField := v.FieldByName(name)
 		typeField, _ := t.FieldByName(name)
-		isRequired, hasRequired := typeField.Tag.Lookup("required")
-		realValue := reflect.Indirect(reflect.ValueOf(value))
-		if hasRequired && isRequired == "true" && (!realValue.IsValid() || realValue.String() == "") {
-			panic(fmt.Sprintf("-%s is missing", typeField.Tag.Get("flag")))
+		if realValue, ok := validation.ValidateField(valueField, typeField, value); ok {
+			valueField.Set(realValue)
+		} else {
+			panic(fmt.Sprintf("%s: missing or invalid value", name))
 		}
-		valueField.Set(realValue)
 	}
 	flags.Validate()
 }

@@ -49,8 +49,35 @@ func Reverse(array []byte) []byte {
 	return newArray
 }
 
+func (fileRepo *FileRepository) Create(parent int64, name string, firstChunkId int64, fileSize int64) (FileDAO, error) {
+	var fileDAO = FileDAO{}
+	lastFileId, err := db.GetLastIdFrom(fileRepo.tx, "file")
+	if err != nil {
+		return fileDAO, nil
+	}
+	lastPathId, err := db.GetLastIdFrom(fileRepo.tx, "path")
+	if err != nil {
+		return fileDAO, nil
+	}
+	var now = time.Now()
+	_, err = fileRepo.tx.Exec(
+		"INSERT INTO path(id, parent_id, name, created_at, accessed_at, modified_at) VALUES (?,?,?,?,?,?)",
+		lastPathId.Int64+1, parent, name, now, now, now)
+	if err != nil {
+		return fileDAO, nil
+	}
+	_, err = fileRepo.tx.Exec(
+		"INSERT INTO file (id, first_chunk_id, path_id, \"size\", modified_at) VALUES (?, ?, ?, ?, ?)",
+		lastFileId.Int64+1, firstChunkId, lastPathId.Int64+1, fileSize, now)
+	if err != nil {
+		return fileDAO, nil
+	}
+	err = fileRepo.tx.Get(&fileDAO, "SELECT * FROM file where id = ?", lastFileId.Int64+1)
+	return fileDAO, err
+}
+
 func (fileRepo *FileRepository) Save(parent int64, name string, data []byte, storageKey string) {
-	key, err := base64.StdEncoding.DecodeString(storageKey)
+	_, err := base64.StdEncoding.DecodeString(storageKey)
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +94,7 @@ func (fileRepo *FileRepository) Save(parent int64, name string, data []byte, sto
 		var chunkSize = rand.Intn(len(data) / 4)
 		chunkSize = int(math.Max(float64(chunkSize), minChunkSize))
 		var chunk = buffer.Next(chunkSize)
-		var encryptedChunk = encryption.Encrypt(Reverse(chunk), key)
+		var encryptedChunk = encryption.Encrypt(Reverse(chunk))
 		config := cmd.GetConfig()
 		path := filepath.Join(config.DataPath, strconv.FormatInt(lastChunkId.Int64+1, 10))
 		chunkFile, err := os.Create(path)

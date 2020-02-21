@@ -31,3 +31,7 @@ func (chunkRepo *ChunkRepository) GetById(id int64) ChunkDAO {
 func (chunkRepo *ChunkRepository) Create(dao ChunkDAO) {
 	chunkRepo.tx.MustExec("INSERT INTO chunk(id, path, next_chunk) VALUES (?, ?, ?)", dao.Id, dao.Path, dao.NextChunk)
 }
+
+func (chunkRepo *ChunkRepository) UpdatePath(id int64, path string) {
+	chunkRepo.tx.MustExec("UPDATE chunk SET path = ? WHERE id = ?", path, id)
+}

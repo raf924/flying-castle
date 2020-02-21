@@ -2,25 +2,34 @@ package main
 
 import (
 	_ "bytes"
+	"flying-castle/business"
 	"flying-castle/cmd"
-	"flying-castle/db/dao"
-	"github.com/jmoiron/sqlx"
+	"flying-castle/db"
 	_ "github.com/mattn/go-sqlite3"
-	"net/url"
 )
+
+type StorageKeyFlags struct {
+}
+
+func (s *StorageKeyFlags) Validate() {
+}
+
+func createStorageKey(config *cmd.Config) error {
+	err := db.LoadDB(config.DbUrl)
+	if err != nil {
+		return err
+	}
+	var skBusiness = business.NewDBStorageKeyBusiness()
+	return skBusiness.Create()
+}
 
 func main() {
 	var config = cmd.GetConfig()
-	var dbUrl, err = url.Parse(config.DbUrl)
+	cmd.ReadFlags(&StorageKeyFlags{})
+	var err = createStorageKey(config)
 	if err != nil {
+		println("error while creating storage key")
 		panic(err)
 	}
-	db, err := sqlx.Connect(dbUrl.Scheme, dbUrl.EscapedPath())
-	if err != nil {
-		panic(err)
-	}
-	tx := db.MustBegin()
-	var skRepo = dao.NewStorageKeyRepository(tx)
-	skRepo.Create()
-	err = tx.Commit()
+	println("Storage key successfully created")
 }

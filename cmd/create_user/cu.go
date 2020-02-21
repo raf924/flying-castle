@@ -4,33 +4,35 @@ import (
 	_ "bytes"
 	"flying-castle/business"
 	"flying-castle/cmd"
-	"github.com/jmoiron/sqlx"
+	"flying-castle/db"
 	_ "github.com/mattn/go-sqlite3"
-	"net/url"
 )
 
 type UserFlags struct {
-	UserName string `flag:"name" required:"true"`
+	UserName string `flag:"name" required:"true" type:"alphanum"`
 	Password string `flag:"password" required:"true"`
 }
 
 func (u *UserFlags) Validate() {
+}
 
+func createUser(config *cmd.Config, flags UserFlags) error {
+	err := db.LoadDB(config.DbUrl)
+	if err != nil {
+		return db.ConnectionError
+	}
+	var userBusiness = business.NewDBUserBusiness()
+	return userBusiness.Create(flags.UserName, flags.Password)
 }
 
 func main() {
 	var config = cmd.GetConfig()
-	var dbUrl, err = url.Parse(config.DbUrl)
-	if err != nil {
-		panic(err)
-	}
 	var flags = UserFlags{}
 	cmd.ReadFlags(&flags)
-	db, err := sqlx.Connect(dbUrl.Scheme, dbUrl.EscapedPath())
+	var err = createUser(config, flags)
 	if err != nil {
+		println("error while creating user %s", flags.UserName)
 		panic(err)
 	}
-	var userBusiness = business.NewUserBusiness(db)
-	userBusiness.Create(flags.UserName, flags.Password)
 	println("User", flags.UserName, "successfully created")
 }
