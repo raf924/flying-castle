@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 	"net/url"
 	"sync"
 	"time"
@@ -50,10 +51,12 @@ func SetDB(driver string, database *sql.DB) {
 	})
 }
 
+const SqliteMemory = "sqlite3::memory:"
+
 func LoadDB(databaseURL string) error {
 	var dbUrl, err = url.Parse(databaseURL)
 	if err != nil {
-		if databaseURL == "sqlite3://:memory:" {
+		if databaseURL == SqliteMemory {
 			dbUrl = &url.URL{
 				Scheme:     "sqlite3",
 				Opaque:     "",

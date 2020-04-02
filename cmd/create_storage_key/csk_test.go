@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"flying-castle/cmd"
+	"flying-castle/app"
 	db2 "flying-castle/db"
 	"flying-castle/migrations"
 	bindata "github.com/golang-migrate/migrate/source/go_bindata"
@@ -13,8 +13,8 @@ import (
 )
 
 func Test_createStorageKey(t *testing.T) {
-	config := &cmd.Config{
-		DbUrl:    "sqlite3://:memory:",
+	config := &app.Config{
+		DbUrl:    db2.SqliteMemory,
 		DataPath: "C:/flying_castle",
 	}
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -40,7 +40,7 @@ func Test_createStorageKey(t *testing.T) {
 	}
 
 	type args struct {
-		config *cmd.Config
+		config *app.Config
 	}
 	tests := []struct {
 		name    string

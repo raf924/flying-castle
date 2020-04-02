@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/base64"
-	"flying-castle/cmd"
+	"flying-castle/app"
 	"flying-castle/db"
 	"flying-castle/encryption"
 	"github.com/jmoiron/sqlx"
@@ -95,7 +95,7 @@ func (fileRepo *FileRepository) Save(parent int64, name string, data []byte, sto
 		chunkSize = int(math.Max(float64(chunkSize), minChunkSize))
 		var chunk = buffer.Next(chunkSize)
 		var encryptedChunk = encryption.Encrypt(Reverse(chunk))
-		config := cmd.GetConfig()
+		config := app.GetConfig()
 		path := filepath.Join(config.DataPath, strconv.FormatInt(lastChunkId.Int64+1, 10))
 		chunkFile, err := os.Create(path)
 		if err != nil {

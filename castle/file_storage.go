@@ -2,17 +2,16 @@ package castle
 
 import (
 	"errors"
-	"flying-castle/cmd"
+	"flying-castle/app"
+	"log"
 	"net/url"
 	"sync"
 )
 
-var chunkWriter ChunkWriter
-var chunkReader ChunkReader
-
 type StorageBackend interface {
 	ChunkWriter
 	ChunkReader
+	ChunkDeleter
 }
 
 var storage StorageBackend
@@ -20,24 +19,26 @@ var storage StorageBackend
 var StorageUrlError = errors.New("storage url is invalid")
 var UnknownStorageProtocolError = errors.New("storage protocol is unsupported")
 
-type BackendConstructor func(path string, config *cmd.Config) (StorageBackend, error)
+type BackendConstructor func(path string, config *app.Config) (StorageBackend, error)
 
 var constructors = make(map[string]BackendConstructor)
 
-func NewWriter(uri string, config *cmd.Config) error {
+func NewBackend(uri string, config *app.Config) (StorageBackend, error) {
+	var backend StorageBackend
 	storageUri, err := url.Parse(uri)
 	if err != nil {
-		return StorageUrlError
+		return nil, StorageUrlError
 	}
 	if constructor, ok := constructors[storageUri.Scheme]; ok {
-		storage, err = constructor(storageUri.EscapedPath(), config)
+		backend, err = constructor(storageUri.EscapedPath(), config)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else {
-		return UnknownStorageProtocolError
+		log.Println(UnknownStorageProtocolError.Error(), ":", storageUri.Scheme)
+		return nil, UnknownStorageProtocolError
 	}
-	return nil
+	return backend, nil
 }
 
 //Wrapper around the global ChunkWriter
@@ -50,6 +51,10 @@ func ReadChunk(fileName string) ([]byte, error) {
 	return storage.Read(fileName)
 }
 
+func DeleteChunks(keys []string) error {
+	return storage.Delete(keys)
+}
+
 type ChunkWriter interface {
 	//Write a chunk of data to the file storage backend
 	//Returns the absolute identifying value for the stored element
@@ -60,6 +65,10 @@ type ChunkReader interface {
 	//Read a chunk of data from the file storage backend given an absolute identifying value
 	//Returns the chunk of data
 	Read(fileName string) ([]byte, error)
+}
+
+type ChunkDeleter interface {
+	Delete(fileNames []string) error
 }
 
 var once sync.Once

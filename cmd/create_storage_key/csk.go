@@ -2,8 +2,8 @@ package main
 
 import (
 	_ "bytes"
+	"flying-castle/app"
 	"flying-castle/business"
-	"flying-castle/cmd"
 	"flying-castle/db"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -14,7 +14,7 @@ type StorageKeyFlags struct {
 func (s *StorageKeyFlags) Validate() {
 }
 
-func createStorageKey(config *cmd.Config) error {
+func createStorageKey(config *app.Config) error {
 	err := db.LoadDB(config.DbUrl)
 	if err != nil {
 		return err
@@ -24,8 +24,8 @@ func createStorageKey(config *cmd.Config) error {
 }
 
 func main() {
-	var config = cmd.GetConfig()
-	cmd.ReadFlags(&StorageKeyFlags{})
+	var config = app.GetConfig()
+	app.ReadFlags(&StorageKeyFlags{})
 	var err = createStorageKey(config)
 	if err != nil {
 		println("error while creating storage key")

@@ -1,7 +1,7 @@
 package castle
 
 import (
-	"flying-castle/cmd"
+	"flying-castle/app"
 	"io/ioutil"
 	"os"
 	filepath "path"
@@ -9,6 +9,16 @@ import (
 
 type FSBackend struct {
 	dataPath string
+}
+
+func (F FSBackend) Delete(fileNames []string) error {
+	for _, fileName := range fileNames {
+		err := os.Remove(fileName)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (F FSBackend) Read(fileName string) ([]byte, error) {
@@ -20,7 +30,7 @@ func (F FSBackend) Read(fileName string) ([]byte, error) {
 }
 
 func init() {
-	constructors["file"] = func(path string, config *cmd.Config) (StorageBackend, error) {
+	constructors["file"] = func(path string, config *app.Config) (StorageBackend, error) {
 		return NewFSBackend(path)
 	}
 }

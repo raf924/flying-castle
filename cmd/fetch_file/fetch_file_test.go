@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"flying-castle/app"
 	"flying-castle/cmd"
 	db2 "flying-castle/db"
 	"flying-castle/encryption"
@@ -60,8 +61,8 @@ func Before(db *sql.DB, storageKey []byte) {
 }
 
 func Test_fetchFile(t *testing.T) {
-	config := &cmd.Config{
-		DbUrl:    "sqlite3://:memory:",
+	config := &app.Config{
+		DbUrl:    db2.SqliteMemory,
 		DataPath: path.Join(os.TempDir(), "flying_castle"),
 	}
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -86,7 +87,7 @@ func Test_fetchFile(t *testing.T) {
 	invalidOutput, _ := os.Create(path.Join(outputPath, "invalid"))
 	_ = invalidOutput.Close()
 	type args struct {
-		config *cmd.Config
+		config *app.Config
 		flags  FileFlags
 	}
 	tests := []struct {

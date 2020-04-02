@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"flying-castle/app"
 	"flying-castle/cmd"
 	db2 "flying-castle/db"
 	"flying-castle/encryption"
@@ -60,8 +61,8 @@ func Before(db *sql.DB, storageKey []byte) {
 }
 
 func Test_storeFile(t *testing.T) {
-	config := &cmd.Config{
-		DbUrl:    "sqlite3://:memory:",
+	config := &app.Config{
+		DbUrl:    db2.SqliteMemory,
 		DataPath: path.Join(os.TempDir(), "flying_castle"),
 	}
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -83,7 +84,7 @@ func Test_storeFile(t *testing.T) {
 	inputFile.WriteString("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")
 	inputFile.Close()
 	type args struct {
-		config *cmd.Config
+		config *app.Config
 		flags  FileFlags
 	}
 	tests := []struct {

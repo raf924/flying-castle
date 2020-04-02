@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"flying-castle/cmd"
+	"flying-castle/app"
 	db2 "flying-castle/db"
 	"flying-castle/migrations"
 	"flying-castle/model"
@@ -14,8 +14,8 @@ import (
 )
 
 func Test_createUser(t *testing.T) {
-	config := &cmd.Config{
-		DbUrl:    "sqlite3://:memory:",
+	config := &app.Config{
+		DbUrl:    db2.SqliteMemory,
 		DataPath: "C:/flying_castle",
 	}
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -40,7 +40,7 @@ func Test_createUser(t *testing.T) {
 		panic(err)
 	}
 	type args struct {
-		config *cmd.Config
+		config *app.Config
 		flags  UserFlags
 	}
 	tests := []struct {

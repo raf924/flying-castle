@@ -2,8 +2,9 @@ package castle
 
 import (
 	"bytes"
+	"context"
 	"errors"
-	"flying-castle/cmd"
+	"flying-castle/app"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -21,6 +23,44 @@ type S3Backend struct {
 	svc        *s3.S3
 	uploader   *s3manager.Uploader
 	downloader *s3manager.Downloader
+}
+
+func (s S3Backend) Delete(fileNames []string) (err error) {
+	//signer := v4.NewSigner(credentials.NewEnvCredentials())
+	deleter := s3manager.NewBatchDeleteWithClient(s.svc, func(batchDelete *s3manager.BatchDelete) {
+		batchDelete.BatchSize = len(fileNames)
+	})
+	var objects = make([]s3manager.BatchDeleteObject, 0)
+	for _, fileName := range fileNames {
+		var fileUrl *url.URL
+		fileUrl, err = url.Parse(fileName)
+		if err != nil {
+			return
+		}
+		var key = fileUrl.EscapedPath()[1:]
+		objects = append(objects, s3manager.BatchDeleteObject{
+			Object: &s3.DeleteObjectInput{
+				Bucket: &s.bucket,
+				Key:    &key,
+			},
+		})
+	}
+	err = deleter.Delete(context.Background(), &s3manager.DeleteObjectsIterator{Objects: objects})
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*time.Duration(len(objects)))
+	defer cancel()
+	for _, object := range objects {
+		err = s.svc.WaitUntilObjectNotExistsWithContext(ctx, &s3.HeadObjectInput{
+			Bucket: object.Object.Bucket,
+			Key:    object.Object.Key,
+		})
+		if err != nil {
+			return
+		}
+	}
+	return
 }
 
 func (s S3Backend) Read(fileName string) (data []byte, err error) {
@@ -59,7 +99,7 @@ func init() {
 	constructors["s3"] = NewS3Backend
 }
 
-func NewS3Backend(bucketName string, config *cmd.Config) (StorageBackend, error) {
+func NewS3Backend(bucketName string, config *app.Config) (StorageBackend, error) {
 	var accessId string
 	var secret string
 	var creds *credentials.Credentials
@@ -84,6 +124,6 @@ func NewS3Backend(bucketName string, config *cmd.Config) (StorageBackend, error)
 	if err != nil {
 		return nil, BucketNotFoundError
 	}
-	return S3Backend{bucket: bucketName, uploader: s3manager.NewUploader(sess), downloader: s3manager.NewDownloader(sess)}, nil
+	return S3Backend{svc: svc, bucket: bucketName, uploader: s3manager.NewUploader(sess), downloader: s3manager.NewDownloader(sess)}, nil
 
 }

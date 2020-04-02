@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flying-castle/app"
 	"flying-castle/business"
 	"flying-castle/castle"
 	"flying-castle/cmd"
@@ -26,7 +27,7 @@ func (f *FileFlags) Validate() {
 	}
 }
 
-func storeFile(config *cmd.Config, flags FileFlags) error {
+func storeFile(config *app.Config, flags FileFlags) error {
 	realFile, err := os.Open(flags.FilePath)
 	if err != nil {
 		return cmd.FileNotFoundError
@@ -83,9 +84,9 @@ func storeFile(config *cmd.Config, flags FileFlags) error {
 }
 
 func main() {
-	var config = cmd.GetConfig()
+	var config = app.GetConfig()
 	var flags = FileFlags{}
-	cmd.ReadFlags(&flags)
+	app.ReadFlags(&flags)
 	var err = storeFile(config, flags)
 	if err != nil {
 		panic(err)

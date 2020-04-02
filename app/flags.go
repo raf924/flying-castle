@@ -1,4 +1,4 @@
-package cmd
+package app
 
 import (
 	"flag"
@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 type Flags struct {
@@ -155,6 +156,14 @@ func ReadFlags(flags AppFlags) {
 				values[typeField.Name] = fset.Int(name, int(d), usage)
 				break
 			case reflect.Int64:
+				if typeField.Type.String() == "time.Duration" {
+					d, err := time.ParseDuration(defaultValue)
+					if err != nil {
+						panic(err)
+					}
+					values[typeField.Name] = fset.Duration(name, d, usage)
+					break
+				}
 				d, err := strconv.ParseInt(defaultValue, 10, 64)
 				if err != nil {
 					panic(err)

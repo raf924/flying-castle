@@ -1,4 +1,4 @@
-package cmd
+package app
 
 type CredentialFlags struct {
 	UserName string `flag:"name" required:"true"`

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flying-castle/app"
 	"flying-castle/business"
 	"flying-castle/cmd"
 	"flying-castle/db"
@@ -26,7 +27,7 @@ func (f *FileFlags) Validate() {
 	}
 }
 
-func fetchFile(config *cmd.Config, flags FileFlags) error {
+func fetchFile(config *app.Config, flags FileFlags) error {
 	err := os.MkdirAll(flags.Output, os.ModeDir)
 	if err != nil {
 		return cmd.NotCreatableError
@@ -71,9 +72,9 @@ func fetchFile(config *cmd.Config, flags FileFlags) error {
 }
 
 func main() {
-	var config = cmd.GetConfig()
+	var config = app.GetConfig()
 	var flags = FileFlags{}
-	cmd.ReadFlags(&flags)
+	app.ReadFlags(&flags)
 	var err = fetchFile(config, flags)
 	if err != nil {
 		println("error while fetching %s", flags.FilePath)

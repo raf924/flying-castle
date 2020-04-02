@@ -48,7 +48,7 @@ func ValidateField(valueField reflect.Value, typeField reflect.StructField, valu
 		return reflect.ValueOf(nil), false
 	}
 	if valueField.Kind() == reflect.String {
-		if !ValidateTag(valueField.String(), tag) {
+		if !ValidateTag(realValue.String(), tag) {
 			return reflect.ValueOf(nil), false
 		}
 	}
